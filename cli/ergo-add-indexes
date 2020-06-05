@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const parseIndexesInput = require("./parsers/parse-indexes-input");
+const ValueAlreadyExistsForPragmaError = require("../lib/errors/ValueAlreadyExistsForPragmaError");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const getValidTableNameFromString = require("../lib/sanitizers/get-valid-table-name-from-string");
+
+program.arguments("[input...]");
+
+program.usage("<table> <field> [additional fields...]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Examples:");
+  console.log("  $ ergo add indexes accounts accountID*String");
+  console.log("  $ ergo add indexes accounts email*String");
+  console.log("  $ ergo add indexes accounts email*String created**String");
+});
+
+program.action(async (values) => {
+  const value = parseIndexesInput(values);
+
+  const fields = Object.values(value)[0];
+  if (Object.keys(fields).length === 0) {
+    program.help();
+  }
+
+  const tableName = Object.keys(value)[0];
+  const suggestedTableName = getValidTableNameFromString(tableName);
+  if (tableName !== suggestedTableName) {
+    value[suggestedTableName] = value[tableName];
+    delete value[tableName];
+
+    console.log(`💡 Corrected '${tableName}' to '${suggestedTableName}'`);
+  }
+
+  let prettyValue = `${suggestedTableName}: `;
+  prettyValue += Object.entries(value[suggestedTableName])
+    .map((e) => e.join(" "))
+    .join(" ");
+
+  try {
+    await arcFile.writePragmaAndValue({
+      pragma: "indexes",
+      value,
+    });
+    await arcCli.init();
+    console.log(`✅ New index: ${prettyValue}`);
+  } catch (err) {
+    if (err instanceof ValueAlreadyExistsForPragmaError) {
+      console.error(`⚠️  Index '${prettyValue}' already exists`);
+    } else {
+      throw err;
+    }
+  }
+});
+
+program.parse(process.argv);

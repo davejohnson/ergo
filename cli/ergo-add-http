@@ -1,0 +1,59 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const ValueAlreadyExistsForPragmaError = require("../lib/errors/ValueAlreadyExistsForPragmaError");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const arcValidation = require("../lib/arc-validation");
+const getValidRoutePathFromString = require("../lib/sanitizers/get-valid-route-path-from-string");
+
+program.arguments("[input...]");
+
+program.usage("<http-verb> <route-path>");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Examples:");
+  console.log("  $ ergo add http get /pages/:dateID");
+  console.log("  $ ergo add http get /contact");
+  console.log("  $ ergo add http post /contact");
+});
+
+program.action(async (values) => {
+  const [httpVerb, routePath] = values;
+
+  const suggestedHttpVerb = (httpVerb || "").toLowerCase();
+  if (!arcValidation.isValidHttpVerb(suggestedHttpVerb)) {
+    program.help();
+  }
+
+  if (!routePath) {
+    program.help();
+  }
+  const suggestedRoutePath = getValidRoutePathFromString(routePath);
+
+  if (suggestedHttpVerb !== httpVerb || suggestedRoutePath !== routePath) {
+    console.log(
+      `💡 Corrected '${httpVerb} ${routePath}' to '${suggestedHttpVerb} ${suggestedRoutePath}'`
+    );
+  }
+
+  try {
+    await arcFile.writePragmaAndValue({
+      pragma: "http",
+      value: [suggestedHttpVerb, suggestedRoutePath],
+    });
+    await arcCli.init();
+    console.log(`✅ New route: ${suggestedHttpVerb} ${suggestedRoutePath}`);
+  } catch (err) {
+    if (err instanceof ValueAlreadyExistsForPragmaError) {
+      console.error(
+        `⚠️  Route already exists: ${suggestedHttpVerb} ${suggestedRoutePath}`
+      );
+    } else {
+      throw err;
+    }
+  }
+});
+
+program.parse(process.argv);

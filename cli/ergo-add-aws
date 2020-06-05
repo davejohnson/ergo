@@ -1,0 +1,87 @@
+#!/usr/bin/env node
+const { program } = require("commander");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const arcValidation = require("../lib/arc-validation");
+const promptForRuntime = require("./prompts/prompt-for-runtime");
+const promptForAwsRegion = require("./prompts/prompt-for-aws-region");
+const aws = require("../lib/aws");
+const parsePositionalKeyValueInput = require("./parsers/parse-positional-key-value-input");
+const getValidRuntimeFromString = require("../lib/sanitizers/get-valid-runtime-from-string");
+const getValidAwsRegionFromString = require("../lib/sanitizers/get-valid-aws-region-from-string");
+
+program.arguments("[input...]");
+
+program.usage("[runtime <runtime>] [region <region>] [profile <profile>]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Available runtimes:");
+  console.log(`  ${arcValidation.getAvailableRuntimes().join(", ")}`);
+
+  console.log("");
+  console.log("Available regions:");
+  console.log(`  ${arcValidation.getAvailableAwsRegions().join(", ")}`);
+
+  console.log("");
+  console.log("Example:");
+  console.log("  $ ergo add aws runtime nodejs10.x region eu-west-1");
+});
+
+program.action(async (args) => {
+  let { runtime, region, profile } = parsePositionalKeyValueInput(args);
+
+  const values = [];
+  if (runtime) {
+    const rawRuntime = runtime;
+    runtime = getValidRuntimeFromString(runtime);
+
+    if (!arcValidation.isValidRuntime(runtime)) {
+      console.error(`❌ Not a valid runtime: ${runtime}`);
+      runtime = await promptForRuntime();
+    } else if (rawRuntime !== runtime) {
+      console.log(`💡 Corrected runtime '${rawRuntime}' to '${runtime}'`);
+    }
+
+    values.push(["runtime", runtime]);
+  }
+  if (region) {
+    const rawRegion = region;
+    region = getValidAwsRegionFromString(region);
+
+    if (!arcValidation.isValidAwsRegion(region)) {
+      console.error(`❌ Not a valid AWS region: ${region}`);
+      region = await promptForAwsRegion();
+    } else if (rawRegion !== region) {
+      console.log(`💡 Corrected region '${rawRegion}' to '${region}'`);
+    }
+
+    values.push(["region", region]);
+  }
+  if (profile) {
+    const configuredProfiles = await aws.getConfiguredProfiles();
+
+    if (!configuredProfiles.includes(profile)) {
+      console.log(`⚠️  AWS profile not configured in credentials: ${profile}`);
+    }
+
+    values.push(["profile", profile]);
+  }
+
+  for (const value of values) {
+    await arcFile.writePragmaAndValue({
+      pragma: "aws",
+      value,
+      shouldReplaceValue: (existingValue) => {
+        // E.g. replace any existing 'region' config with our new one
+        return existingValue[0] === value[0];
+      },
+    });
+  }
+
+  await arcCli.init();
+
+  console.log(`✅ @aws updated`);
+});
+
+program.parse(process.argv);

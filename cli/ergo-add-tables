@@ -1,0 +1,44 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const parseTablesInput = require("./parsers/parse-tables-input");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const getValidTableNameFromString = require("../lib/sanitizers/get-valid-table-name-from-string");
+
+program.arguments("[input...]");
+
+program.usage("<table> <field> [additional fields...] [stream]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Examples:");
+  console.log("  $ ergo add tables people pplID*String stream");
+  console.log("  $ ergo add tables accounts email*String");
+  console.log("  $ ergo add tables cats pplID*String catID**String");
+});
+
+program.action(async (values) => {
+  const value = parseTablesInput(values);
+
+  const fields = Object.values(value)[0];
+  if (Object.keys(fields).length === 0) {
+    program.help();
+  }
+
+  const tableName = Object.keys(value)[0];
+  const suggestedTableName = getValidTableNameFromString(tableName);
+  if (tableName !== suggestedTableName) {
+    value[suggestedTableName] = value[tableName];
+    delete value[tableName];
+
+    console.log(`💡 Corrected '${tableName}' to '${suggestedTableName}'`);
+  }
+
+  await arcFile.writeToTables({ value });
+  await arcCli.init();
+
+  console.log(`✅ Tables updated`);
+});
+
+program.parse(process.argv);

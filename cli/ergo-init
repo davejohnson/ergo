@@ -1,0 +1,71 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const path = require("path");
+const promptForFolderName = require("./prompts/prompt-for-folder-name");
+const promptForRuntime = require("./prompts/prompt-for-runtime");
+const ProjectDirExistsError = require("../lib/errors/ProjectDirExistsError");
+const arcCli = require("../lib/arc-cli");
+const git = require("../lib/git");
+const arcFile = require("../lib/arc-file");
+const misc = require("../lib/misc");
+const ensureDependenciesSetup = require("./setup/ensure-dependencies-setup");
+const getValidAppNameFromString = require("../lib/sanitizers/get-valid-app-name-from-string");
+
+program.arguments("[appName]");
+
+program.action(async function (folderName) {
+  await ensureDependenciesSetup();
+
+  if (!folderName) {
+    folderName = await promptForFolderName({ message: "Project directory" });
+  }
+
+  if (!misc.isValidFolderName(folderName)) {
+    console.error(`❌ '${folderName}' is not a valid folder name`);
+    folderName = await promptForFolderName({ message: "Enter folder name" });
+  }
+
+  const appName = getValidAppNameFromString(folderName);
+  const dir = path.resolve(process.cwd(), folderName);
+
+  try {
+    const runtime = await promptForRuntime({
+      message: "Choose a global runtime for all functions in this project",
+      allowNone: true,
+    });
+
+    console.log(
+      `🚀 Initializing new Architect project ${
+        runtime ? `for ${runtime}` : ""
+      }...`
+    );
+
+    await misc.createProjectDir({ dir });
+    await arcCli.init({ dir, appName });
+
+    if (runtime) {
+      await arcFile.writePragmaAndValue({
+        dir,
+        pragma: "aws",
+        value: ["runtime", runtime],
+      });
+    }
+
+    await git.runGitInit({ dir });
+    await git.createGitIgnoreFile({ dir });
+
+    console.log(`✅ Architect and git initialized at ${dir}`);
+  } catch (err) {
+    if (err instanceof ProjectDirExistsError) {
+      console.error(`❌ Project dir already exists: ${dir}`);
+
+      process.exit(1);
+    }
+
+    console.error(err.stack || err);
+    process.exit(1);
+  }
+});
+
+program.parse(process.argv);

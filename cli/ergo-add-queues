@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const ValueAlreadyExistsForPragmaError = require("../lib/errors/ValueAlreadyExistsForPragmaError");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const getValidQueueNameFromString = require("../lib/sanitizers/get-valid-queue-name-from-string");
+
+program.arguments("[input...]");
+
+program.usage("[queue names...]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Example:");
+  console.log("  $ ergo add queues convert-image publish-log");
+});
+
+program.action(async (values) => {
+  const queues = values;
+  if (queues.length === 0) {
+    program.help();
+  }
+
+  for (const queue of queues) {
+    const suggestedQueueName = getValidQueueNameFromString(queue);
+
+    if (!suggestedQueueName) {
+      console.error(`⚠️  Skipping invalid queue name: '${queue}'`);
+      continue;
+    }
+
+    if (suggestedQueueName !== queue) {
+      console.log(`💡 Corrected '${queue}' to '${suggestedQueueName}'`);
+    }
+
+    try {
+      await arcFile.writePragmaAndValue({
+        pragma: "queues",
+        value: suggestedQueueName,
+      });
+      await arcCli.init();
+      console.log(`✅ Added queue: ${suggestedQueueName}`);
+    } catch (err) {
+      if (err instanceof ValueAlreadyExistsForPragmaError) {
+        console.error(`⚠️  Queue '${suggestedQueueName}' already exists`);
+      } else {
+        throw err;
+      }
+    }
+  }
+});
+
+program.parse(process.argv);
