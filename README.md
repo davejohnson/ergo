@@ -1,5 +1,7 @@
 # Ergo
 
+Rails for Architect
+
 ## Development
 
 First, clone the repo and install dependencies:
