@@ -1,0 +1,12 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const packageJSON = require("../package.json");
+
+program.version(packageJSON.version);
+
+program
+  .command("init", "Create a new Architect project")
+  .command("add", "Add a value to a pragma");
+
+program.parse(process.argv);

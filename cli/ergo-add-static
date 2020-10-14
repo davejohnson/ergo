@@ -1,0 +1,42 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const ValueAlreadyExistsForPragmaError = require("../lib/errors/ValueAlreadyExistsForPragmaError");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+
+program.arguments("[input...]");
+
+program.usage("[fingerprint]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Example:");
+  console.log("  $ ergo add static fingerprint");
+});
+
+program.action(async (values) => {
+  const value = [];
+  for (const val of values) {
+    if (val === "fingerprint") {
+      value.push("fingerprint", true);
+    }
+  }
+
+  try {
+    await arcFile.writePragmaAndValue({
+      pragma: "static",
+      value,
+    });
+    await arcCli.init();
+    console.log(`✅ Static updated`);
+  } catch (err) {
+    if (err instanceof ValueAlreadyExistsForPragmaError) {
+      console.error(`⚠️  Setting '${value.join(" ")}' already exists`);
+    } else {
+      throw err;
+    }
+  }
+});
+
+program.parse(process.argv);

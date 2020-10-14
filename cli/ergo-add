@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+
+program
+  .command("app", "Configures the @app pragma")
+  .alias("@app")
+  .command("aws", "Configures the @aws pragma")
+  .alias("@aws")
+  .command("events", "Configures the @events pragma")
+  .alias("@events")
+  .alias("@event")
+  .alias("event")
+  .command("http", "Configures the @http pragma")
+  .alias("@http")
+  .alias("route")
+  .command("indexes", "Configures the @indexes pragma")
+  .alias("index")
+  .alias("@indexes")
+  .alias("@index")
+  .command("queues", "Configures the @queues pragma")
+  .alias("queue")
+  .alias("@queues")
+  .alias("@queue")
+  .command("scheduled", "Configures the @scheduled pragma")
+  .alias("schedule")
+  .alias("@scheduled")
+  .alias("@schedule")
+  .command("static", "Configures the @static pragma")
+  .alias("@static")
+  .command("tables", "Configures the @tables pragma")
+  .alias("table")
+  .alias("@tables")
+  .alias("@table")
+  .command("ws", "Configures the @ws pragma")
+  .alias("@ws");
+
+program.parse(process.argv);

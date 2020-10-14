@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+require("./setup/error-listener")();
+const { program } = require("commander");
+const ValueAlreadyExistsForPragmaError = require("../lib/errors/ValueAlreadyExistsForPragmaError");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const getValidEventNameFromString = require("../lib/sanitizers/get-valid-event-name-from-string");
+
+program.arguments("[input...]");
+
+program.usage("[event names...]");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Example:");
+  console.log("  $ ergo add events hit-counter likes");
+});
+
+program.action(async (values) => {
+  const events = values;
+  if (events.length === 0) {
+    program.help();
+  }
+
+  const addedEvents = [];
+
+  for (const event of events) {
+    const suggestedEventName = getValidEventNameFromString(event);
+    if (suggestedEventName !== event) {
+      console.log(`💡 Corrected '${event}' to '${suggestedEventName}'`);
+    }
+
+    try {
+      await arcFile.writePragmaAndValue({
+        pragma: "events",
+        value: suggestedEventName,
+      });
+      addedEvents.push(suggestedEventName);
+    } catch (err) {
+      if (err instanceof ValueAlreadyExistsForPragmaError) {
+        console.error(`⚠️  Event '${suggestedEventName}' already exists`);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  await arcCli.init();
+
+  addedEvents.forEach((event) => {
+    console.log(`✅ Added event: ${event}`);
+  });
+});
+
+program.parse(process.argv);

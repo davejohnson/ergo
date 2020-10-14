@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+const { program } = require("commander");
+const arcFile = require("../lib/arc-file");
+const arcCli = require("../lib/arc-cli");
+const getValidAppNameFromString = require("../lib/sanitizers/get-valid-app-name-from-string");
+
+program.arguments("[input...]");
+
+program.usage("<app-name>");
+
+program.on("--help", () => {
+  console.log("");
+  console.log("Example:");
+  console.log("  $ ergo add app my-app");
+});
+
+program.action(async (values) => {
+  let appName = values.join(" ");
+  if (!appName) {
+    program.help();
+  }
+
+  const suggestedAppName = getValidAppNameFromString(appName);
+  if (suggestedAppName !== appName) {
+    console.log(`💡 Corrected '${appName}' to '${suggestedAppName}'`);
+  }
+
+  await arcFile.writeAppNameReplacingOld({ value: suggestedAppName });
+  await arcCli.init();
+
+  console.log(`✅ Set app name: ${suggestedAppName}`);
+});
+
+program.parse(process.argv);
